@@ -1,6 +1,9 @@
 import sys
+import threading
 from PyQt5 import QtWidgets, QtCore, QtGui
 from ping3 import ping
+from pystray import Icon, MenuItem, Menu
+from PIL import Image
 
 class WatermarkLabel(QtWidgets.QLabel):
     def __init__(self, message, parent=None):
@@ -55,15 +58,41 @@ class PingMonitorApp(QtWidgets.QApplication):
         self.timer.timeout.connect(self.check_ping)
         self.timer.start(1000)
 
+        # Agregar icono en la bandeja del sistema
+        self.create_system_tray()
+
     def check_ping(self):
         response = ping(self.host, timeout=1)
         if response is not None:
             self.window.update_message("VPN Conectada")
+            if not self.window.isVisible():
+                self.window.show()
         else:
-            self.window.update_message("VPN Desconectada")
+            self.window.hide()
+
+    def create_system_tray(self):
+        """Crea un icono en la bandeja del sistema con opciones para salir."""
+        image = Image.new("RGB", (64, 64), (0, 255, 0))  # Un icono verde básico
+
+        menu = Menu(
+            MenuItem("Salir", self.quit_app)
+        )
+
+        self.tray_icon = Icon("VPN Monitor", image, "VPN Monitor", menu)
+
+        # Ejecutar el icono en un hilo separado
+        self.tray_thread = threading.Thread(target=self.tray_icon.run, daemon=True)
+        self.tray_thread.start()
+
+    def quit_app(self, icon, item):
+        self.tray_icon.stop()
+        self.quit()
 
 if __name__ == "__main__":
-    host = "192.111.1.1" # Ip con la que intentara comunicarse
-    message = "VPN Conectada" # Mensaje personalizable
+    host = "192.111.1.1"  # IP a la que se intentará comunicar
+    message = "VPN Conectada"  # Mensaje personalizable
     app = PingMonitorApp(sys.argv, host, message)
     sys.exit(app.exec_())
+
+# Para hacerlo ejecutable
+# python -m PyInstaller --onefile --windowed .\main.py
